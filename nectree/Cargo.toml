@@ -13,7 +13,6 @@ anyhow = "1.0"
 bincode = "1.3.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_urlencoded = "0.7.1"
 uqbar_process_lib = { git = "ssh://git@github.com/uqbar-dao/process_lib.git", rev = "e708198" }
 wit-bindgen = { git = "https://github.com/bytecodealliance/wit-bindgen", rev = "efcc759" }
 

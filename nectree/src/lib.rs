@@ -8,7 +8,7 @@ use uqbar_process_lib::{
     },
     println, set_state,
     vfs::{open_file, File},
-    Address, Message, ProcessId, Request, Response,
+    Address, Message,
 };
 
 wit_bindgen::generate!({
@@ -57,9 +57,11 @@ fn handle_http_server_request(
                         return Ok(());
                     };
 
+                    println!("Payload: {:?}", String::from_utf8(payload.bytes.clone()));
+
                     // note here. adding a single js script into the html file will enable both json post requests,
                     // and dynamic reloading.
-                    let Ok(link_request) = serde_urlencoded::from_bytes::<LinkRequest>(&payload.bytes) else {
+                    let Ok(link_request) = serde_json::from_slice::<LinkRequest>(&payload.bytes) else {
                         println!("nectree: couldn't parse link request!");
                         return Ok(());
                     };
@@ -108,8 +110,8 @@ fn save_and_render_html(
         .iter()
         .map(|link| {
             format!(
-                "<li><a href=\"{}\"><img src=\"{}\" alt=\"{}\">{}</a></li>",
-                link.url, link.image, link.description, link.name
+                "<li><a target=\"_blank\" href=\"{}\"><img src=\"{}\" alt=\"{}\" style=\"max-width:100px; max-height:100px;\">{}</a><p>{}</p><button class=\"delete-button\" data-name=\"{}\">X</button></li>",
+                link.url, link.image, link.description, link.name, link.description, link.name
             )
         })
         .collect();
@@ -123,7 +125,7 @@ fn save_and_render_html(
     // might not be necessary
     html_file.sync_all()?;
 
-    serve_index_html(our, "ui")?;
+    bind_http_static_path("/", false, false, Some("text/html".into()), html.into_bytes())?;
 
     Ok(())
 }
@@ -145,19 +147,66 @@ fn generate_html_header() -> String {
     </head>
     <body>
         <h2>NecTree</h2>
-        <form id="linkForm" action="/post" method="post">
-        <label for="name">Name:</label><br>
-        <input type="text" id="name" name="name"><br>
-        <label for="url">URL:</label><br>
-        <input type="text" id="url" name="url"><br>
-        <label for="image">Image URL:</label><br>
-        <input type="text" id="image" name="image"><br>
-        <label for="description">Description:</label><br>
-        <input type="text" id="description" name="description"><br>
-        <label for="order">Order:</label><br>
-        <input type="number" id="order" name="order"><br>
-        <input type="submit" value="Add Link">
-    </form>
+        <form id="linkForm">
+            <label for="name">Name:</label><br>
+            <input type="text" id="name" name="name"><br>
+            <label for="url">URL:</label><br>
+            <input type="text" id="url" name="url"><br>
+            <label for="image">Image URL:</label><br>
+            <input type="text" id="image" name="image"><br>
+            <label for="description">Description:</label><br>
+            <input type="text" id="description" name="description"><br>
+            <label for="order">Order:</label><br>
+            <input type="number" id="order" name="order"><br>
+            <input type="submit" value="Add Link">
+        </form>
+    
+        <script>
+            document.getElementById('linkForm').addEventListener('submit', function(event) {
+                event.preventDefault();
+    
+                var link = {
+                    name: document.getElementById('name').value,
+                    url: document.getElementById('url').value,
+                    image: document.getElementById('image').value,
+                    description: document.getElementById('description').value,
+                    order: Number(document.getElementById('order').value)
+                };
+    
+                fetch('post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ Save: link })
+                }).then(function() {
+                    location.reload();
+                });
+            });
+
+            function addDeleteButtonEventListeners() {
+                var deleteButtons = document.getElementsByClassName('delete-button');
+                for (var i = 0; i < deleteButtons.length; i++) {
+                    deleteButtons[i].addEventListener('click', function(event) {
+                        event.preventDefault();
+
+                        var name = event.target.getAttribute('data-name');
+
+                        fetch('post', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ Delete: { name: name } })
+                        }).then(function() {
+                            location.reload();
+                        });
+                    });
+                }
+            }
+
+            addDeleteButtonEventListeners();
+        </script>
     "#;
     html_header.to_string()
 }
@@ -208,14 +257,14 @@ impl Guest for Component {
         let mut html_file =
             open_file(&format!("{}/pkg/ui/index.html", our.package_id()), false).unwrap();
 
-        // let html = html_file.read().unwrap();
+        let html = html_file.read().unwrap();
 
         // serve the "static" index.html file
         // quick note, we can't use bind_path and bind static path together.
 
         // bind the "/" path for post requests.
         bind_http_path("/post", false, false).unwrap();
-        serve_index_html(&our, "ui").unwrap();
+        bind_http_static_path("/", false, false, Some("text/html".into()), html).unwrap();
 
         loop {
             match handle_message(&our, &mut link_tree, &mut html_file) {

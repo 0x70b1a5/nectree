@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use uqbar_process_lib::{
     await_message, get_payload, get_state,
     http::{
@@ -57,7 +57,9 @@ fn handle_http_server_request(
                         return Ok(());
                     };
 
-                    let Ok(link_request) = serde_json::from_slice::<LinkRequest>(&payload.bytes) else {
+                    // note here. adding a single js script into the html file will enable both json post requests,
+                    // and dynamic reloading.
+                    let Ok(link_request) = serde_urlencoded::from_bytes::<LinkRequest>(&payload.bytes) else {
                         println!("nectree: couldn't parse link request!");
                         return Ok(());
                     };
@@ -143,6 +145,19 @@ fn generate_html_header() -> String {
     </head>
     <body>
         <h2>NecTree</h2>
+        <form id="linkForm" action="/post" method="post">
+        <label for="name">Name:</label><br>
+        <input type="text" id="name" name="name"><br>
+        <label for="url">URL:</label><br>
+        <input type="text" id="url" name="url"><br>
+        <label for="image">Image URL:</label><br>
+        <input type="text" id="image" name="image"><br>
+        <label for="description">Description:</label><br>
+        <input type="text" id="description" name="description"><br>
+        <label for="order">Order:</label><br>
+        <input type="number" id="order" name="order"><br>
+        <input type="submit" value="Add Link">
+    </form>
     "#;
     html_header.to_string()
 }
@@ -198,9 +213,9 @@ impl Guest for Component {
         // serve the "static" index.html file
         // quick note, we can't use bind_path and bind static path together.
 
+        // bind the "/" path for post requests.
+        bind_http_path("/post", false, false).unwrap();
         serve_index_html(&our, "ui").unwrap();
-        // bind the "/" path for post requests. 
-        //bind_http_path("/", false, false).unwrap();
 
         loop {
             match handle_message(&our, &mut link_tree, &mut html_file) {

@@ -108,14 +108,14 @@ fn save_and_render_html(
     links.sort_by_key(|link| link.order);
 
     let html_links: String = links
-        .iter()
-        .map(|link| {
-            format!(
-                "<li><a target=\"_blank\" href=\"{}\"><img src=\"{}\" alt=\"{}\" style=\"max-width:100px; max-height:100px;\">{}</a><p>{}</p><button class=\"delete-button\" data-name=\"{}\">X</button></li>",
-                link.url, link.image, link.description, link.name, link.description, link.name
-            )
-        })
-        .collect();
+    .iter()
+    .map(|link| {
+        format!(
+            "<li><a target=\"_blank\" href=\"{}\"><img src=\"{}\" alt=\"{}\" style=\"max-width:100px; max-height:100px;\">{}</a><p>{}</p><button class=\"delete-button\" onclick=\"deleteLink('{}')\">X</button></li>",
+            link.url, link.image, link.description, link.name, link.description, link.name
+        )
+    })
+    .collect();
 
     let html_body = format!("<ul>\n{}\n</ul>", html_links);
     let html_header = generate_html_header();
@@ -183,28 +183,17 @@ fn generate_html_header() -> String {
                 });
             });
 
-            function addDeleteButtonEventListeners() {
-                var deleteButtons = document.getElementsByClassName('delete-button');
-                for (var i = 0; i < deleteButtons.length; i++) {
-                    deleteButtons[i].addEventListener('click', function(event) {
-                        event.preventDefault();
-
-                        var name = event.target.getAttribute('data-name');
-
-                        fetch('post', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ Delete: { name: name } })
-                        }).then(function() {
-                            location.reload();
-                        });
-                    });
-                }
+            function deleteLink(name) {
+                fetch('post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ Delete: { name: name } })
+                }).then(function () {
+                    location.reload();
+                });
             }
-
-            addDeleteButtonEventListeners();
         </script>
     "#;
     html_header.to_string()

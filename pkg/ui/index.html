@@ -52,30 +52,18 @@
                 location.reload();
             });
         });
-    </script>
 
-    <script>
-        function addDeleteButtonEventListeners() {
-            var deleteButtons = document.getElementsByClassName('delete-button');
-            for (var i = 0; i < deleteButtons.length; i++) {
-                deleteButtons[i].addEventListener('click', function (event) {
-                    event.preventDefault();
-                    var name = event.target.getAttribute('data-name');
-
-                    fetch('post', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ Delete: { name: name } })
-                    }).then(function () {
-                        location.reload();
-                    });
-                });
-            }
+        function deleteLink(name) {
+            fetch('post', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ Delete: { name: name } })
+            }).then(function () {
+                location.reload();
+            });
         }
-
-        addDeleteButtonEventListeners();
     </script>
 </body>
 

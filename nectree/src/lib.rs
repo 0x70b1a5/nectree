@@ -1,6 +1,10 @@
 use serde::{Serialize, Deserialize};
-
-use uqbar_process_lib::{await_message, print_to_terminal, Address, Message, ProcessId, Request, Response};
+use std::collections::HashMap;
+use uqbar_process_lib::{
+    await_message, println, Address, Message, ProcessId, Request, Response, get_payload,
+    http::{IncomingHttpRequest, HttpServerRequest, StatusCode, send_response, serve_index_html, bind_http_static_path, bind_http_path},
+    vfs::open_file,
+};
 
 wit_bindgen::generate!({
     path: "wit",
@@ -12,9 +16,8 @@ wit_bindgen::generate!({
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Link {
-    id: String,
-    display_name: String,
-    target: String,
+    name: String,
+    url: String,
     image: String,
     description: String,
     order: u32,
@@ -22,110 +25,111 @@ struct Link {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum LinkRequest {
-    Get,
-    Create(Link),
-    Edit(Link),
-    Delete(String),
+    Save(Link),
+    Delete { name: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 enum LinkResponse {
-    Ack,
-    Get {
-        link_tree: LinkTree,
-    },
+    Get { link_tree: LinkTree },
 }
 
-type LinkTree = Vec<Link>;
+type LinkTree = HashMap<String, Link>;
 
-fn handle_message (
+fn handle_http_server_request (
     our: &Address,
-    link_tree: &mut LinkTree,
+    ipc: &[u8],
+    mut link_tree: &mut LinkTree,
 ) -> anyhow::Result<()> {
-    let message = await_message().unwrap();
+    let Ok(server_request) = serde_json::from_slice::<HttpServerRequest>(ipc) else {
+        println!("nectree: couldn't parse request!");
+        return Ok(());
+    };
+
+    match server_request {
+        HttpServerRequest::Http(IncomingHttpRequest { method, .. }) => {
+            match method.as_str() {
+                // Get a path
+                "GET" => {
+                    let mut headers = HashMap::new();
+                    headers.insert("Content-Type".to_string(), "application/json".to_string());
+                    
+                    // Send an http response via the http server
+                }
+                // Send a message
+                "POST" => {
+                    let Some(payload) = get_payload() else {
+                        println!("no payload in nectree POST request");
+                        return Ok(());
+                    };
+
+                    // Send an http response via the http server
+                    send_response(StatusCode::CREATED, None, vec![])?;
+                }
+                _ => {
+                    // Method not allowed
+                    send_response(StatusCode::METHOD_NOT_ALLOWED, None, vec![])?;
+                }
+            }
+        }
+        _ => {
+            // Method not allowed
+            send_response(StatusCode::METHOD_NOT_ALLOWED, None, vec![])?;
+        }
+    };
+
+Ok(())
+    
+}
+
+fn handle_message(
+    our: &Address,
+    mut link_tree: &mut LinkTree,
+) -> anyhow::Result<()> {
+    let message = await_message()?;
 
     match message {
         Message::Response { .. } => {
-            print_to_terminal(0, &format!("nectree: unexpected Response: {:?}", message));
-            panic!("");
-        },
-        Message::Request { ref source, ref ipc, .. } => {
-            if source != our {
-                print_to_terminal(0, &format!("nectree: unexpected Request: {:?}", message));
-                panic!("");
-            }
-            match serde_json::from_slice(ipc)? {
-                LinkRequest::Create(link) => {
-                    link_tree.push(link);
-                    Response::new()
-                        .ipc(serde_json::to_vec(&LinkResponse::Ack).unwrap())
-                        .send()
-                        .unwrap();
-                },
-                LinkRequest::Edit(link) => {
-                    let mut found = false;
-                    for found_link in link_tree.iter_mut() {
-                        if found_link.id == link.id {
-                            *found_link = link;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if !found {
-                        return Err(anyhow::anyhow!("link not found"));
-                    }
-                    Response::new()
-                        .ipc(serde_json::to_vec(&LinkResponse::Ack).unwrap())
-                        .send()
-                        .unwrap();
-                },
-                LinkRequest::Delete(id) => {
-                    let mut found = false;
-                    for i in 0..link_tree.len() {
-                        if link_tree[i].id == id {
-                            link_tree.remove(i);
-                            found = true;
-                            break;
-                        }
-                    }
-                    if !found {
-                        return Err(anyhow::anyhow!("link not found"));
-                    }
-                    Response::new()
-                        .ipc(serde_json::to_vec(&LinkResponse::Ack).unwrap())
-                        .send()
-                        .unwrap();
-                },
-                LinkRequest::Get => {
-                    Response::new()
-                        .ipc(serde_json::to_vec(&LinkResponse::Get {
-                            link_tree: link_tree.clone(),
-                        }).unwrap())
-                        .send()
-                        .unwrap();
-                },
-            }
-        },
+            println!("nnotes: got response - {:?}", message);
+            return Ok(());
+        }
+        Message::Request {
+            ref ipc,
+            ..
+        } => {
+            // Requests that come from our http server, handle intranode later too. 
+            handle_http_server_request(our, ipc, &mut link_tree)?;
+
+        }
     }
+
     Ok(())
 }
+
+/// 1. read in html/markdown file 
+/// 2. parse it into a tree
+
+/// 1. make linktree into an html/markdown file
+/// 2. save_file
+/// 3. bind_path again.
 
 struct Component;
 impl Guest for Component {
     fn init(our: String) {
-        print_to_terminal(0, "nectree: begin");
+        println!("nectree: begin");
 
         let our = Address::from_str(&our).unwrap();
-        let mut link_tree: LinkTree = Vec::new();
+        let mut link_tree: LinkTree = HashMap::new();
+
+        // Bind the path, and serve the index.html file
+        serve_index_html(&our, "ui").unwrap();
+        bind_http_path("/", false, false).unwrap();
 
         loop {
             match handle_message(&our, &mut link_tree) {
                 Ok(()) => {},
                 Err(e) => {
-                    print_to_terminal(0, format!(
-                        "nectree: error: {:?}",
-                        e,
-                    ).as_str());
+                    println!("nectree: error: {:?}", e);
                 },
             };
         }

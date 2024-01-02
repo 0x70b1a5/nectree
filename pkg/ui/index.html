@@ -60,7 +60,6 @@
             for (var i = 0; i < deleteButtons.length; i++) {
                 deleteButtons[i].addEventListener('click', function (event) {
                     event.preventDefault();
-
                     var name = event.target.getAttribute('data-name');
 
                     fetch('post', {

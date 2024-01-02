@@ -53,14 +53,9 @@ fn handle_http_server_request(
                 "POST" => {
                     let Some(payload) = get_payload() else {
                         println!("no payload in nectree POST request");
-                        // TODO, send http_responses too?
                         return Ok(());
                     };
 
-                    println!("Payload: {:?}", String::from_utf8(payload.bytes.clone()));
-
-                    // note here. adding a single js script into the html file will enable both json post requests,
-                    // and dynamic reloading.
                     let Ok(link_request) = serde_json::from_slice::<LinkRequest>(&payload.bytes) else {
                         println!("nectree: couldn't parse link request!");
                         return Ok(());
@@ -78,6 +73,12 @@ fn handle_http_server_request(
                         }
                     }
                     send_response(StatusCode::CREATED, None, vec![])?;
+                }
+                "GET" => {
+                    let html = html_file.read()?;
+                    let mut headers: HashMap<String, String> = HashMap::new();
+                    headers.insert("Content-Type".into(), "text/html".into()); 
+                    send_response(StatusCode::OK, Some(headers), html)?;
                 }
                 _ => {
                     // Method not allowed
@@ -124,8 +125,6 @@ fn save_and_render_html(
     html_file.write(html.as_bytes())?;
     // might not be necessary
     html_file.sync_all()?;
-
-    bind_http_static_path("/", false, false, Some("text/html".into()), html.into_bytes())?;
 
     Ok(())
 }
@@ -257,14 +256,14 @@ impl Guest for Component {
         let mut html_file =
             open_file(&format!("{}/pkg/ui/index.html", our.package_id()), false).unwrap();
 
-        let html = html_file.read().unwrap();
+        // let html = html_file.read().unwrap();
 
         // serve the "static" index.html file
         // quick note, we can't use bind_path and bind static path together.
 
         // bind the "/" path for post requests.
         bind_http_path("/post", false, false).unwrap();
-        bind_http_static_path("/", false, false, Some("text/html".into()), html).unwrap();
+        bind_http_path("/", false, false).unwrap();
 
         loop {
             match handle_message(&our, &mut link_tree, &mut html_file) {

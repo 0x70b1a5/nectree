@@ -36,7 +36,7 @@ enum LinkRequest {
 
 type LinkTree = HashMap<String, Link>;
 
-const HTML_TEMPLATE: &str = include_str!("../../pkg/ui/index.html");
+const HTML_TEMPLATE: &str = include_str!("../../pkg/ui/template.html");
 
 fn handle_http_server_request(
     our: &Address,
@@ -76,7 +76,6 @@ fn handle_http_server_request(
                     send_response(StatusCode::CREATED, None, vec![])?;
                 }
                 "GET" => {
-                    save_and_render_html(our, link_tree, html_file)?;
                     let html = html_file.read()?;
                     let mut headers: HashMap<String, String> = HashMap::new();
                     headers.insert("Content-Type".into(), "text/html".into()); 
@@ -134,6 +133,7 @@ fn save_and_render_html(
             .collect();
 
         html = HTML_TEMPLATE.replace("linksgohere", &html_links);
+        println!("nectree: html: {}", html);
     }
     
     // Write the HTML string to the file

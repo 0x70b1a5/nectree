@@ -36,39 +36,45 @@
     </div>
 
     <script>
-        document.getElementById('linkForm').addEventListener('submit', function (event) {
-            console.log('button')
-            event.preventDefault();
+        let oldOnload = window.onload;
+        window.onload = () => {
+            if (oldOnload) {
+                oldOnload();
+            }
 
-            var link = {
-                name: document.getElementById('name').value,
-                url: document.getElementById('url').value,
-                image: document.getElementById('image').value,
-                description: document.getElementById('description').value,
-                order: Number(document.getElementById('order').value)
-            };
-
-            fetch('post', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ Save: link })
-            }).then(function () {
-                location.reload();
+            document.getElementById('linkForm').addEventListener('submit', function (event) {
+                event.preventDefault();
+    
+                var link = {
+                    name: document.getElementById('name').value,
+                    url: document.getElementById('url').value,
+                    image: document.getElementById('image').value,
+                    description: document.getElementById('description').value,
+                    order: Number(document.getElementById('order').value)
+                };
+    
+                fetch('post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ Save: link })
+                }).then(function () {
+                    location.reload();
+                });
             });
-        });
-
-        window.deleteLink = function (name) {
-            fetch('post', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ Delete: { name: name } })
-            }).then(function () {
-                location.reload();
-            });
+    
+            window.deleteLink = function (name) {
+                fetch('post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ Delete: { name: name } })
+                }).then(function () {
+                    location.reload();
+                });
+            }
         }
     </script>
 </body>

@@ -3,66 +3,78 @@
 
 <head>
     <title>NecTree</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.0.2/tailwind.min.css" rel="stylesheet">
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico"/>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-
-        h2 {
-            color: #333;
-        }
+        
     </style>
 </head>
 
 <body>
-    <h2>NecTree</h2>
-    <form id="linkForm">
-        <label for="name">Name:</label><br>
-        <input type="text" id="name" name="name"><br>
-        <label for="url">URL:</label><br>
-        <input type="text" id="url" name="url"><br>
-        <label for="image">Image URL:</label><br>
-        <input type="text" id="image" name="image"><br>
-        <label for="description">Description:</label><br>
-        <input type="text" id="description" name="description"><br>
-        <label for="order">Order:</label><br>
-        <input type="number" id="order" name="order"><br>
-        <input type="submit" value="Add Link">
-    </form>
+    <div class="container mx-auto p-4">
+        <h2 class="text-2xl font-bold mb-4">NecTree</h2>
+        <div class="rounded-md bg-gray-100 p-4 mb-4">
+            <form id="linkForm" class="grid grid-cols-2 gap-4">
+                <label for="name" class="block">Name:</label>
+                <input required type="text" id="name" name="name" placeholder="Example Link" class="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <label for="url" class="block">URL:</label>
+                <input required type="text" id="url" name="url" placeholder="https://example.com" class="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <label for="image" class="block">Image URL:</label>
+                <input required type="text" id="image" name="image" placeholder="https://example.com/image.jpg" class="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <label for="order" class="block">Order:</label>
+                <input required type="number" id="order" name="order" placeholder="1" class="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <label for="description" class="block">Description:</label>
+                <textarea id="description" name="description" placeholder="Enter description" class="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">Example description</textarea>
+                <input type="submit" value="Add Link" class="col-span-2 w-full px-4 py-2 mt-4 text-white bg-blue-500 rounded-md hover:bg-blue-600">
+            </form>
+        </div>
+
+        <div class="rounded-md bg-gray-100 p-4 flex flex-col">
+            linksgohere
+        </div>
+    </div>
 
     <script>
-        document.getElementById('linkForm').addEventListener('submit', function (event) {
-            event.preventDefault();
+        let oldOnload = window.onload;
+        window.onload = () => {
+            if (oldOnload) {
+                oldOnload();
+            }
 
-            var link = {
-                name: document.getElementById('name').value,
-                url: document.getElementById('url').value,
-                image: document.getElementById('image').value,
-                description: document.getElementById('description').value,
-                order: Number(document.getElementById('order').value)
-            };
-
-            fetch('post', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ Save: link })
-            }).then(function () {
-                location.reload();
+            document.getElementById('linkForm').addEventListener('submit', function (event) {
+                event.preventDefault();
+    
+                var link = {
+                    name: document.getElementById('name').value,
+                    url: document.getElementById('url').value,
+                    image: document.getElementById('image').value,
+                    description: document.getElementById('description').value,
+                    order: Number(document.getElementById('order').value)
+                };
+    
+                fetch('post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ Save: link })
+                }).then(function () {
+                    location.reload();
+                });
             });
-        });
-
-        function deleteLink(name) {
-            fetch('post', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ Delete: { name: name } })
-            }).then(function () {
-                location.reload();
-            });
+    
+            window.deleteLink = function (name) {
+                fetch('post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ Delete: { name: name } })
+                }).then(function () {
+                    location.reload();
+                });
+            }
         }
     </script>
 </body>

@@ -8,7 +8,7 @@ use uqbar_process_lib::{
     },
     println, set_state,
     vfs::{open_file, File},
-    Address, Message,
+    Address, Message, print_to_terminal,
 };
 
 wit_bindgen::generate!({
@@ -35,6 +35,8 @@ enum LinkRequest {
 }
 
 type LinkTree = HashMap<String, Link>;
+
+const HTML_TEMPLATE: &str = include_str!("../../pkg/ui/index.html");
 
 fn handle_http_server_request(
     our: &Address,
@@ -64,7 +66,6 @@ fn handle_http_server_request(
                     match link_request {
                         LinkRequest::Save(link) => {
                             link_tree.insert(link.name.clone(), link);
-
                             save_and_render_html(our, link_tree, html_file)?;
                         }
                         LinkRequest::Delete { name } => {
@@ -75,6 +76,7 @@ fn handle_http_server_request(
                     send_response(StatusCode::CREATED, None, vec![])?;
                 }
                 "GET" => {
+                    save_and_render_html(our, link_tree, html_file)?;
                     let html = html_file.read()?;
                     let mut headers: HashMap<String, String> = HashMap::new();
                     headers.insert("Content-Type".into(), "text/html".into()); 
@@ -105,98 +107,40 @@ fn save_and_render_html(
     set_state(&state);
 
     let mut links: Vec<&Link> = link_tree.values().collect();
-    links.sort_by_key(|link| link.order);
+    let html: String;
+    if links.len() == 0 {
+        html = HTML_TEMPLATE.replace("linksgohere", &"No links yet.");
+    } else {
+        links.sort_by_key(|link| link.order);
+    
+        let html_links: String = links
+            .iter()
+            .map(|link| {
+                format!(
+                    r#"
 
-    let html_links: String = links
-    .iter()
-    .map(|link| {
-        format!(
-            "<li><a target=\"_blank\" href=\"{}\"><img src=\"{}\" alt=\"{}\" style=\"max-width:100px; max-height:100px;\">{}</a><p>{}</p><button class=\"delete-button\" onclick=\"deleteLink('{}')\">X</button></li>",
-            link.url, link.image, link.description, link.name, link.description, link.name
-        )
-    })
-    .collect();
+<a href="{}" target="_blank" class="rounded-md bg-gray-200 p-2 mb-2 flex items-center hover:bg-gray-300">
+    <img class="w-16 h-16 bg-gray-400 rounded-md mr-2" src={}/>
+    <div>
+        <h3 class="text-lg font-semibold">{}</h3>
+        <p class="text-sm">{}</p>
+    </div>
+    <button class="ml-auto bg-red-500 text-white px-2 py-1 rounded-md" onclick="deleteLink('{}')">Delete</button>
+</a>
+                    "#,
+                    link.url, link.image, link.name, link.description, link.name
+                )
+            })
+            .collect();
 
-    let html_body = format!("<ul>\n{}\n</ul>", html_links);
-    let html_header = generate_html_header();
-    let html = format!("{}{}\n</body>\n</html>", html_header, html_body);
-
+        html = HTML_TEMPLATE.replace("linksgohere", &html_links);
+    }
+    
     // Write the HTML string to the file
     html_file.write(html.as_bytes())?;
-    // might not be necessary
     html_file.sync_all()?;
 
     Ok(())
-}
-
-fn generate_html_header() -> String {
-    let html_header = r#"
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>NecTree</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-            }
-            h2 {
-                color: #333;
-            }
-        </style>
-    </head>
-    <body>
-        <h2>NecTree</h2>
-        <form id="linkForm">
-            <label for="name">Name:</label><br>
-            <input type="text" id="name" name="name"><br>
-            <label for="url">URL:</label><br>
-            <input type="text" id="url" name="url"><br>
-            <label for="image">Image URL:</label><br>
-            <input type="text" id="image" name="image"><br>
-            <label for="description">Description:</label><br>
-            <input type="text" id="description" name="description"><br>
-            <label for="order">Order:</label><br>
-            <input type="number" id="order" name="order"><br>
-            <input type="submit" value="Add Link">
-        </form>
-    
-        <script>
-            document.getElementById('linkForm').addEventListener('submit', function(event) {
-                event.preventDefault();
-    
-                var link = {
-                    name: document.getElementById('name').value,
-                    url: document.getElementById('url').value,
-                    image: document.getElementById('image').value,
-                    description: document.getElementById('description').value,
-                    order: Number(document.getElementById('order').value)
-                };
-    
-                fetch('post', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ Save: link })
-                }).then(function() {
-                    location.reload();
-                });
-            });
-
-            function deleteLink(name) {
-                fetch('post', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ Delete: { name: name } })
-                }).then(function () {
-                    location.reload();
-                });
-            }
-        </script>
-    "#;
-    html_header.to_string()
 }
 
 fn handle_message(
@@ -220,14 +164,6 @@ fn handle_message(
     Ok(())
 }
 
-// can make stateless, you'll deal with the html parsing sir.
-/// 1. read in html/markdown file
-/// 2. parse it into a tree
-
-/// 1. make linktree into an html/markdown file
-/// 2. save_file
-/// 3. bind_path again.
-
 struct Component;
 impl Guest for Component {
     fn init(our: String) {
@@ -245,13 +181,10 @@ impl Guest for Component {
         let mut html_file =
             open_file(&format!("{}/pkg/ui/index.html", our.package_id()), false).unwrap();
 
-        // let html = html_file.read().unwrap();
+        let favicon = open_file(&format!("{}/pkg/ui/favicon.ico", our.package_id()), false).unwrap();
 
-        // serve the "static" index.html file
-        // quick note, we can't use bind_path and bind static path together.
-
-        // bind the "/" path for post requests.
         bind_http_path("/post", false, false).unwrap();
+        bind_http_static_path("/favicon.ico", false, false, Some("image/x-icon".into()), favicon.read().unwrap()).unwrap();
         bind_http_path("/", false, false).unwrap();
 
         loop {

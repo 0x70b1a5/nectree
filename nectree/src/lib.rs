@@ -6,9 +6,9 @@ use uqbar_process_lib::{
         bind_http_path, bind_http_static_path, send_response, serve_index_html, HttpServerRequest,
         IncomingHttpRequest, StatusCode,
     },
-    println, set_state,
+    print_to_terminal, println, set_state,
     vfs::{open_file, File},
-    Address, Message, print_to_terminal,
+    Address, Message,
 };
 
 wit_bindgen::generate!({
@@ -78,7 +78,7 @@ fn handle_http_server_request(
                 "GET" => {
                     let html = html_file.read()?;
                     let mut headers: HashMap<String, String> = HashMap::new();
-                    headers.insert("Content-Type".into(), "text/html".into()); 
+                    headers.insert("Content-Type".into(), "text/html".into());
                     send_response(StatusCode::OK, Some(headers), html)?;
                 }
                 _ => {
@@ -102,16 +102,19 @@ fn save_and_render_html(
     html_file: &mut File,
 ) -> anyhow::Result<()> {
     // Save the LinkTree to state
+    // println!("in save and render");
     let state = serde_json::to_vec(link_tree)?;
     set_state(&state);
 
     let mut links: Vec<&Link> = link_tree.values().collect();
     let html: String;
     if links.len() == 0 {
+        // println!("length 0, pre and post html: {}", HTML_TEMPLATE);
         html = HTML_TEMPLATE.replace("linksgohere", &"No links yet.");
+        // println!("html post len 0 replace: {}", html);
     } else {
         links.sort_by_key(|link| link.order);
-    
+
         let html_links: String = links
             .iter()
             .map(|link| {
@@ -131,11 +134,11 @@ fn save_and_render_html(
                 )
             })
             .collect();
-
+        // println!("html pre len not 0 replace: {}", HTML_TEMPLATE);
         html = HTML_TEMPLATE.replace("linksgohere", &html_links);
-        println!("nectree: html: {}", html);
+        // println!("POST PROBLME {}", html);
     }
-    
+
     // Write the HTML string to the file
     html_file.write(html.as_bytes())?;
     html_file.sync_all()?;
@@ -181,10 +184,18 @@ impl Guest for Component {
         let mut html_file =
             open_file(&format!("{}/pkg/ui/index.html", our.package_id()), false).unwrap();
 
-        let favicon = open_file(&format!("{}/pkg/ui/favicon.ico", our.package_id()), false).unwrap();
+        let favicon =
+            open_file(&format!("{}/pkg/ui/favicon.ico", our.package_id()), false).unwrap();
 
         bind_http_path("/post", false, false).unwrap();
-        bind_http_static_path("/favicon.ico", false, false, Some("image/x-icon".into()), favicon.read().unwrap()).unwrap();
+        bind_http_static_path(
+            "/favicon.ico",
+            false,
+            false,
+            Some("image/x-icon".into()),
+            favicon.read().unwrap(),
+        )
+        .unwrap();
         bind_http_path("/", false, false).unwrap();
 
         loop {

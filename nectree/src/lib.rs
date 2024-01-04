@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use uqbar_process_lib::{
     await_message, get_payload, get_state,
     http::{
-        bind_http_path, bind_http_static_path, send_response, serve_index_html, HttpServerRequest,
+        bind_http_path, bind_http_static_path, send_response, HttpServerRequest,
         IncomingHttpRequest, StatusCode,
     },
-    print_to_terminal, println, set_state,
+    println, set_state,
     vfs::{open_file, File},
     Address, Message,
 };
@@ -39,7 +39,6 @@ type LinkTree = HashMap<String, Link>;
 const HTML_TEMPLATE: &str = include_str!("../../pkg/ui/template.html");
 
 fn handle_http_server_request(
-    our: &Address,
     ipc: &[u8],
     link_tree: &mut LinkTree,
     html_file: &mut File,
@@ -66,11 +65,11 @@ fn handle_http_server_request(
                     match link_request {
                         LinkRequest::Save(link) => {
                             link_tree.insert(link.name.clone(), link);
-                            save_and_render_html(our, link_tree, html_file)?;
+                            save_and_render_html(link_tree, html_file)?;
                         }
                         LinkRequest::Delete { name } => {
                             link_tree.remove(&name);
-                            save_and_render_html(our, link_tree, html_file)?;
+                            save_and_render_html(link_tree, html_file)?;
                         }
                     }
                     send_response(StatusCode::CREATED, None, vec![])?;
@@ -96,11 +95,7 @@ fn handle_http_server_request(
     Ok(())
 }
 
-fn save_and_render_html(
-    our: &Address,
-    link_tree: &LinkTree,
-    html_file: &mut File,
-) -> anyhow::Result<()> {
+fn save_and_render_html(link_tree: &LinkTree, html_file: &mut File) -> anyhow::Result<()> {
     // Save the LinkTree to state
     // println!("in save and render");
     let state = serde_json::to_vec(link_tree)?;
@@ -160,7 +155,7 @@ fn handle_message(
         }
         Message::Request { ref ipc, .. } => {
             // Requests that come from our http server, handle intranode later too.
-            handle_http_server_request(our, ipc, &mut link_tree, &mut html_file)?;
+            handle_http_server_request(ipc, &mut link_tree, &mut html_file)?;
         }
     }
 

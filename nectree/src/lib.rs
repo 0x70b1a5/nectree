@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use uqbar_process_lib::{
-    await_message, get_payload, get_state,
+use std::{collections::HashMap, str::FromStr};
+use nectar_process_lib::{
+    await_message, get_blob, get_state, call_init,
     http::{
         bind_http_path, bind_http_static_path, send_response, HttpServerRequest,
         IncomingHttpRequest, StatusCode,
@@ -10,14 +10,6 @@ use uqbar_process_lib::{
     vfs::{open_file, File},
     Address, Message,
 };
-
-wit_bindgen::generate!({
-    path: "wit",
-    world: "process",
-    exports: {
-        world: Component,
-    },
-});
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Link {
@@ -52,7 +44,7 @@ fn handle_http_server_request(
         HttpServerRequest::Http(IncomingHttpRequest { method, .. }) => {
             match method.as_str() {
                 "POST" => {
-                    let Some(payload) = get_payload() else {
+                    let Some(payload) = get_blob() else {
                         println!("no payload in nectree POST request");
                         return Ok(());
                     };
@@ -153,53 +145,58 @@ fn handle_message(
             println!("nnotes: got response - {:?}", message);
             return Ok(());
         }
-        Message::Request { ref ipc, .. } => {
+        Message::Request { ref body, .. } => {
             // Requests that come from our http server, handle intranode later too.
-            handle_http_server_request(ipc, &mut link_tree, &mut html_file)?;
+            handle_http_server_request(body, &mut link_tree, &mut html_file)?;
         }
     }
 
     Ok(())
 }
 
-struct Component;
-impl Guest for Component {
-    fn init(our: String) {
-        println!("nectree: begin");
+wit_bindgen::generate!({
+    path: "wit",
+    world: "process",
+    exports: {
+        world: Component,
+    },
+});
 
-        let our = Address::from_str(&our).unwrap();
+call_init!(init);
 
-        // Get previous LinkTree or create a new one
-        let mut link_tree: LinkTree = match get_state() {
-            Some(state) => serde_json::from_slice::<LinkTree>(&state).unwrap(),
-            None => HashMap::new(),
+fn init(our: Address) {
+    println!("nectree: begin");
+
+    // Get previous LinkTree or create a new one
+    let mut link_tree: LinkTree = match get_state() {
+        Some(state) => serde_json::from_slice::<LinkTree>(&state).unwrap(),
+        None => HashMap::new(),
+    };
+
+    // open existing html file, read it's bytes.
+    let mut html_file =
+        open_file(&format!("{}/pkg/ui/index.html", our.package_id()), false).unwrap();
+
+    let favicon =
+        open_file(&format!("{}/pkg/ui/favicon.ico", our.package_id()), false).unwrap();
+
+    bind_http_path("/post", false, false).unwrap();
+    bind_http_static_path(
+        "/favicon.ico",
+        false,
+        false,
+        Some("image/x-icon".into()),
+        favicon.read().unwrap(),
+    )
+    .unwrap();
+    bind_http_path("/", false, false).unwrap();
+
+    loop {
+        match handle_message(&our, &mut link_tree, &mut html_file) {
+            Ok(()) => {}
+            Err(e) => {
+                println!("nectree: error: {:?}", e);
+            }
         };
-
-        // open existing html file, read it's bytes.
-        let mut html_file =
-            open_file(&format!("{}/pkg/ui/index.html", our.package_id()), false).unwrap();
-
-        let favicon =
-            open_file(&format!("{}/pkg/ui/favicon.ico", our.package_id()), false).unwrap();
-
-        bind_http_path("/post", false, false).unwrap();
-        bind_http_static_path(
-            "/favicon.ico",
-            false,
-            false,
-            Some("image/x-icon".into()),
-            favicon.read().unwrap(),
-        )
-        .unwrap();
-        bind_http_path("/", false, false).unwrap();
-
-        loop {
-            match handle_message(&our, &mut link_tree, &mut html_file) {
-                Ok(()) => {}
-                Err(e) => {
-                    println!("nectree: error: {:?}", e);
-                }
-            };
-        }
     }
 }
